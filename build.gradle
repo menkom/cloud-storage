@@ -25,7 +25,13 @@ dependencies {
 	compileOnly 'org.projectlombok:lombok'
 	annotationProcessor 'org.projectlombok:lombok'
 
+	implementation 'com.amazonaws:aws-java-sdk-s3:1.12.387'
+
 	testImplementation 'org.springframework.boot:spring-boot-starter-test'
+
+	annotationProcessor 'org.springframework.boot:spring-boot-configuration-processor' //for properties load to object from application.yml
+
+	implementation 'javax.xml.bind:jaxb-api:2.3.1' //Warning "JAXB is unavailable." Starting from Java 9+ this module was excluded from JRE so need to be included as dependency
 }
 
 tasks.named('test') {
