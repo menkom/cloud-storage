@@ -9,6 +9,7 @@ import lombok.experimental.FieldDefaults;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.codec.binary.Base64;
 import org.apache.commons.codec.digest.DigestUtils;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -23,12 +24,14 @@ import java.util.UUID;
 @Service
 @RequiredArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
-public class AmazonS3Service {
+@ConditionalOnProperty(value = "amazon.s3.async", havingValue = "false", matchIfMissing = true)
+public class AmazonS3Service implements IAmazonS3Service {
 
     AmazonS3 amazonS3;
 
     AmazonSettings amazonSettings;
 
+    @Override
     public List<Bucket> getBuckets() {
         return amazonS3.listBuckets();
     }
@@ -36,6 +39,7 @@ public class AmazonS3Service {
     /**
      * <a href="https://docs.aws.amazon.com/AmazonS3/latest/userguide/bucketnamingrules.html">Bucket name rules</a>
      */
+    @Override
     public Bucket createBucket(String name) {
         if (amazonS3.doesBucketExistV2(name)) {
             return getBucket(name);
@@ -43,6 +47,7 @@ public class AmazonS3Service {
         return amazonS3.createBucket(name);
     }
 
+    @Override
     public void deleteBucket(String bucketName) {
         log.info("Attempt to delete bucket: {}", bucketName);
         if (amazonS3.doesBucketExistV2(bucketName)) {
@@ -50,6 +55,7 @@ public class AmazonS3Service {
         }
     }
 
+    @Override
     public Bucket getBucket(String bucket_name) {
         return amazonS3.listBuckets()
                 .stream()
@@ -58,7 +64,13 @@ public class AmazonS3Service {
                 .orElse(null);
     }
 
+    @Override
     public PutObjectResult upload(MultipartFile file) {
+        return upload(amazonSettings.getDefaultBucket(), file);
+    }
+
+    @Override
+    public PutObjectResult upload(String bucketName, MultipartFile file) {
         log.info("Uploading file. filename: {}, type: {}, size: {}", file.getOriginalFilename(), file.getContentType(), file.getSize());
         PutObjectResult result = null;
         ObjectMetadata metadata = new ObjectMetadata();
@@ -69,7 +81,7 @@ public class AmazonS3Service {
             String md5 = getMD5(file);
 
             result = amazonS3.putObject(
-                    amazonSettings.getDefaultBucket(),
+                    bucketName,
                     UUID.randomUUID() + "/" + file.getOriginalFilename(),
                     file.getInputStream(),
                     metadata
@@ -102,6 +114,7 @@ public class AmazonS3Service {
         return new String(Base64.encodeBase64(resultByte));
     }
 
+    @Override
     public List<S3ObjectSummary> getObjects(String bucketName) {
         if (amazonS3.doesBucketExistV2(bucketName)) {
             return amazonS3.listObjects(bucketName).getObjectSummaries();
@@ -110,10 +123,12 @@ public class AmazonS3Service {
         }
     }
 
+    @Override
     public void deleteObject(String bucketName, String key) {
         amazonS3.deleteObject(bucketName, key);
     }
 
+    @Override
     public void getObject(String bucketName, String key) {
         if (amazonS3.doesObjectExist(bucketName, key)) {
             S3Object object = amazonS3.getObject(bucketName, key);
